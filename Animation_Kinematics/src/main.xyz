@@ -1,0 +1,401 @@
+/* Simple opengl demo program.
+ */
+
+//#elif defined(__linux)
+#if defined(__APPLE__) || defined(MACOSX)
+#   include <GLUT/glut.h>
+#else
+#   include <GL/glut.h>
+#endif
+
+#include <iostream>
+#include <stdlib.h>
+#include <stdio.h>
+#include "GLScreenCapturer.h"
+#include "trackball.h"
+
+using namespace std;
+
+#define BUFFER_LENGTH 64
+#define drawOneLine(x1,y1,x2,y2)  glBegin(GL_LINES);  \
+   glVertex2f ((x1),(y1)); glVertex2f ((x2),(y2)); glEnd();
+
+
+GLfloat camRotX, camRotY, camPosX, camPosY, camPosZ;
+GLint viewport[4];
+GLdouble modelview[16];
+GLdouble projection[16];
+
+GLuint pickedObj = -1;
+char titleString[150];
+
+bool isTeapot1_selected = false;
+bool isTeapot2_selected = false;
+
+// Lights & Materials
+GLfloat ambient[] = {0.2, 0.2, 0.2, 1.0};
+GLfloat position[] = {0.0, 0.0, 2.0, 1.0};
+GLfloat mat_diffuse[] = {0.6, 0.6, 0.6, 1.0};
+GLfloat mat_specular[] = {1.0, 1.0, 1.0, 1.0};
+GLfloat mat_shininess[] = {50.0};
+
+static GLScreenCapturer screenshot("screenshot-%d.ppm");
+
+//void blah(void)
+//{
+//   int i;
+
+//   //glClear (GL_COLOR_BUFFER_BIT);
+//   glColor3f (1.0, 1.0, 1.0);
+
+///* in 1st row, 3 lines, each with a different stipple  */
+//   glEnable (GL_LINE_STIPPLE);
+
+//   glLineStipple (1, 0x0101);  /*  dotted  */
+//   drawOneLine (50.0, 125.0, 150.0, 125.0);
+//   glLineStipple (1, 0x00FF);  /*  dashed  */
+//   drawOneLine (150.0, 125.0, 250.0, 125.0);
+//   glLineStipple (1, 0x1C47);  /*  dash/dot/dash  */
+//   drawOneLine (250.0, 125.0, 350.0, 125.0);
+///* in 2nd row, 3 wide lines, each with different stipple */
+//   glLineWidth (20.0);
+//   glLineStipple (1, 0x0101);  /*  dotted  */
+//   drawOneLine (50.0, 100.0, 150.0, 100.0);
+//   glLineStipple (1, 0x00FF);  /*  dashed  */
+//   drawOneLine (150.0, 100.0, 250.0, 100.0);
+//   glLineStipple (1, 0x1C47);  /*  dash/dot/dash  */
+//   drawOneLine (250.0, 100.0, 350.0, 100.0);
+//   glLineWidth (1.0);
+
+///* in 3rd row, 6 lines, with dash/dot/dash stipple  */
+///* as part of a single connected line strip         */
+//   glLineStipple (1, 0x1C47);  /*  dash/dot/dash  */
+//   glBegin (GL_LINE_STRIP);
+//   for (i = 0; i < 7; i++)
+//      glVertex2f (50.0 + ((GLfloat) i * 50.0), 75.0);
+//   glEnd ();
+
+///* in 4th row, 6 independent lines with same stipple  */
+//   for (i = 0; i < 6; i++) {
+//      drawOneLine (50.0 + ((GLfloat) i * 50.0), 50.0,
+//         50.0 + ((GLfloat)(i+1) * 50.0), 50.0);
+//   }
+
+///* in 5th row, 1 line, with dash/dot/dash stipple    */
+///* and a stipple repeat factor of 5                  */
+//   glLineStipple (5, 0x1C47);  /*  dash/dot/dash  */
+//   drawOneLine (50.0, 25.0, 350.0, 25.0);
+
+//   glDisable (GL_LINE_STIPPLE);
+//   //glFlush ();
+//}
+
+void initLights(void)
+{
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    
+    glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+    glLightfv(GL_LIGHT0, GL_POSITION, position);
+    
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, mat_diffuse);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
+    glMaterialfv(GL_FRONT, GL_SHININESS, mat_shininess);
+}
+
+void setupRC()
+{
+    tbInit(GLUT_RIGHT_BUTTON);
+    tbAnimate(GL_TRUE);
+    
+    // Place Camera
+    camRotX = 350.0f;
+    camRotY = 680.0f;
+    camPosX = 0.0f;
+    camPosY = 0.0f;
+    camPosZ = -10.5f;
+    
+    glEnable( GL_DEPTH_TEST );
+    glShadeModel(GL_SMOOTH);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    initLights();
+}
+
+void setCamera( void )
+{
+    glTranslatef(0, 0, camPosZ);
+    glRotatef(camRotX, 1, 0, 0);
+    glRotatef(camRotY, 0, 1, 0);
+}
+
+void drawSelectableTeapots( void )
+{
+    float currentColor[4];
+    glGetFloatv(GL_CURRENT_COLOR, currentColor);
+    
+    GLfloat selectedColor[] = {0, 1, 0, 1};
+    GLfloat unselectedColor[] = {1, 0, 0, 1};
+
+    // Initialize the name stack
+    glInitNames();
+    glPushName(0);
+    
+    // Draw two teapots next to each other in z axis
+    glPushMatrix();
+    {
+    
+        if( isTeapot1_selected )
+            glMaterialfv(GL_FRONT, GL_DIFFUSE, selectedColor);
+        else
+            glMaterialfv(GL_FRONT, GL_DIFFUSE, unselectedColor);
+        glLoadName(0);
+        glutSolidTeapot(2.5);
+
+        if( isTeapot2_selected )
+            glMaterialfv(GL_FRONT, GL_DIFFUSE, selectedColor);
+        else
+            glMaterialfv(GL_FRONT, GL_DIFFUSE, unselectedColor);
+        glLoadName(1);
+        glTranslatef(0,0,5);
+        glutSolidTeapot(1.5);
+    }
+    glPopMatrix();
+    
+    glColor4fv(currentColor);
+
+}
+
+void display( void )
+{
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+    
+    glPushMatrix();
+    {
+    
+        setCamera();
+        tbMatrix();
+        
+        drawSelectableTeapots();
+        blah();
+        
+        // Retrieve current matrice before they popped.
+        glGetDoublev( GL_MODELVIEW_MATRIX, modelview );        // Retrieve The Modelview Matrix
+        glGetDoublev( GL_PROJECTION_MATRIX, projection );    // Retrieve The Projection Matrix
+        glGetIntegerv( GL_VIEWPORT, viewport );                // Retrieves The Viewport Values (X, Y, Width, Height)
+    }
+    glPopMatrix();
+
+    glFlush();
+    // End Drawing calls
+    glutSwapBuffers();
+}
+
+void reshape( int w, int h )
+{
+    tbReshape(w, h);
+
+    glViewport(0, 0, w, h);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    
+    // Set the clipping volume
+    gluPerspective(45.0f, (GLfloat)w / (GLfloat)h, 1.0f, 100.0f);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+}
+
+void keyboard( unsigned char key, int x, int y )
+{
+    switch(key)
+    {
+    case 27: // Escape key
+        exit(0);
+        break;
+    case 'r':
+        printf("save current screen\n");
+        screenshot.capture();
+        break;
+//    case ' ': //Space bar
+//        cout<<endl<<"what!!";
+//        glutDisplayFunc( blah );
+//        break;
+    }
+}
+
+void processSelection(int xPos, int yPos)
+{
+    GLfloat fAspect;
+    
+    // Space for selection buffer
+    static GLuint selectBuff[BUFFER_LENGTH];
+    
+    // Hit counter and viewport storage
+    GLint hits, viewport[4];
+    
+    // Setup selection buffer
+    glSelectBuffer(BUFFER_LENGTH, selectBuff);
+    
+    // Get the viewport
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    
+    // Switch to projection and save the matrix
+    glMatrixMode(GL_PROJECTION);
+    
+    glPushMatrix();
+    {
+        // Change render mode
+        glRenderMode(GL_SELECT);
+        
+        // Establish new clipping volume to be unit cube around
+        // mouse cursor point (xPos, yPos) and extending two pixels
+        // in the vertical and horizontal direction
+        glLoadIdentity();
+        gluPickMatrix(xPos, viewport[3] - yPos + viewport[1], 0.1,0.1, viewport);
+        
+        // Apply perspective matrix
+        fAspect = (float)viewport[2] / (float)viewport[3];
+        gluPerspective(45.0f, fAspect, 1.0, 425.0);
+        
+        
+        // Render only those needed for selection
+        glPushMatrix();
+        {
+            setCamera();
+            tbMatrixForSelection();
+            
+            drawSelectableTeapots();
+        }
+        glPopMatrix();
+        
+        
+        // Collect the hits
+        hits = glRenderMode(GL_RENDER);
+        
+        isTeapot1_selected = false;
+        isTeapot2_selected = false;
+        
+        // If hit(s) occurred, display the info.
+        if(hits != 0)
+        {
+        
+            // Save current picked object.
+            // Take only the nearest selection
+            pickedObj = selectBuff[3];
+            
+            sprintf (titleString, "You clicked on %d", pickedObj);
+            glutSetWindowTitle(titleString);
+            
+            if (pickedObj == 0) {
+                isTeapot1_selected = true;
+            }
+            
+            if (pickedObj == 1) {
+                isTeapot2_selected = true;
+            }
+            
+        }
+        else
+            glutSetWindowTitle("Nothing was clicked on!");
+        
+        
+        // Restore the projection matrix
+        glMatrixMode(GL_PROJECTION);
+    }
+    glPopMatrix();
+    
+    // Go back to modelview for normal rendering
+    glMatrixMode(GL_MODELVIEW);
+    
+    glutPostRedisplay();
+}
+
+void mouse( int button, int state, int x, int y)
+{
+    tbMouse(button, state, x, y);
+    
+    if(button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+        processSelection(x, y);
+    
+    if(button == GLUT_LEFT_BUTTON && state == GLUT_UP)
+    {
+        pickedObj = -1;
+        glutPostRedisplay();
+    }
+}
+
+void motion(int x, int y)
+{
+    tbMotion(x, y);
+    
+    GLfloat winX, winY, winZ;
+    GLdouble posX, posY, posZ;
+    
+    winX = (float)x;
+    winY = (float)viewport[3] - (float)y;
+    glReadPixels( x, (int)winY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &winZ );
+    gluUnProject( winX, winY, winZ, modelview, projection, viewport, &posX, &posY, &posZ);
+    glutPostRedisplay();
+
+}
+
+int main (int argc, char *argv[])
+{
+    int win_width = 512;
+    int win_height = 512;
+
+    glutInit( &argc, argv );
+    glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
+    glutInitWindowSize( win_width, win_height );
+
+    glutCreateWindow( "Opengl demo" );
+    setupRC();
+
+    glutDisplayFunc( display );
+    //glutDisplayFunc( blah );
+    glutReshapeFunc( reshape );
+    glutKeyboardFunc( keyboard );
+    glutMouseFunc( mouse );
+    glutMotionFunc( motion );
+
+    glutMainLoop();
+}
+
+//#include <GL/gl.h>
+//#include <GL/glut.h>
+
+//#define drawOneLine(x1,y1,x2,y2)  glBegin(GL_LINES);  \
+//   glVertex2f ((x1),(y1)); glVertex2f ((x2),(y2)); glEnd();
+
+//void init(void)
+//{
+//   glClearColor (0.0, 0.0, 0.0, 0.0);
+//   glShadeModel (GL_FLAT);
+//}
+
+//void display(void)
+//{
+
+//}
+
+//void reshape (int w, int h)
+//{
+//   glViewport (0, 0, (GLsizei) w, (GLsizei) h);
+//   glMatrixMode (GL_PROJECTION);
+//   glLoadIdentity ();
+//   gluOrtho2D (0.0, (GLdouble) w, 0.0, (GLdouble) h);
+//}
+//int main(int argc, char** argv)
+//{
+//   glutInit(&argc, argv);
+//   glutInitDisplayMode (GLUT_SINGLE | GLUT_RGB);
+//   glutInitWindowSize (400, 150);
+//   glutInitWindowPosition (100, 100);
+//   glutCreateWindow (argv[0]);
+//   init ();
+//   glutDisplayFunc(display);
+//   glutReshapeFunc(reshape);
+//   glutMainLoop();
+//   return 0;
+//}
