@@ -1,7 +1,3 @@
-/*
- * GLScreenCapturer.h
- * author: Changxi Zheng (cxz@cs.columbia.edu)
- */
 #ifndef GL_SCREEN_CAPTURER_H
 #   define GL_SCREEN_CAPTURER_H
 

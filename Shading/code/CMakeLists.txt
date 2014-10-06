@@ -1,5 +1,3 @@
-# CMake project file for W4160 Computer Graphics
-# Changxi Zheng (cxz@cs.columbia.edu)
 project(PA3)
 
 cmake_minimum_required(VERSION 2.6.2 FATAL_ERROR)

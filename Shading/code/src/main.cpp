@@ -1,10 +1,3 @@
-/* Simple opengl demo program. 
- *
- * Author: Papoj Thamjaroenporn
- *         Changxi Zheng
- * Spring 2013
- */
-
 #include <stdlib.h>
 #include <stdio.h>
 

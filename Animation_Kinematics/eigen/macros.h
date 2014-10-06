@@ -1,14 +1,3 @@
-/******************************************************************************
- *  The definitions of some utility macros
- *
- *  Changxi Zheng (cxzheng@cs.cornell.edu)
- *
- ******************************************************************************/
-
-/*
- * The returned value should be zero, if an operation is succeed.
- * otherwise, non-zero is returned.
- */
 #ifndef MACRO_DEF_H
 #   define MACRO_DEF_H
 
